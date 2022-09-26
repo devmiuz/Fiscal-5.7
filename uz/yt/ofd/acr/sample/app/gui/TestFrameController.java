@@ -5,40 +5,7 @@
  */
 package uz.yt.ofd.acr.sample.app.gui;
 
-import com.google.gson.FieldNamingPolicy;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonPrimitive;
-import com.google.gson.JsonSerializationContext;
-import com.google.gson.JsonSerializer;
-
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Type;
-import java.security.SecureRandom;
-import java.sql.SQLException;
-import java.text.SimpleDateFormat;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import javax.smartcardio.Card;
-import javax.smartcardio.CardTerminal;
-import javax.smartcardio.CardTerminals;
-import javax.smartcardio.TerminalFactory;
-import javax.swing.*;
-import javax.swing.table.TableModel;
-
-import timber.log.Timber;
+import com.google.gson.*;
 import uz.yt.ofd.acr.sample.app.config.SenderConfig;
 import uz.yt.ofd.acr.sample.app.logger.TLVLogger;
 import uz.yt.ofd.acr.sample.app.sender.Sender;
@@ -46,73 +13,39 @@ import uz.yt.ofd.acr.sample.app.sender.TCPSender;
 import uz.yt.ofd.acr.sample.app.storage.SQLiteStorage;
 import uz.yt.ofd.acr.sample.app.storage.Storage;
 import uz.yt.ofd.acr.sample.app.validator.OnlineFiscalSignValidator;
+import uz.yt.ofd.codec.DumpDescriptor;
 import uz.yt.ofd.codec.HexBin;
 import uz.yt.ofd.codec.Utils;
 import uz.yt.ofd.codec.applet.APDUIO;
 import uz.yt.ofd.codec.applet.APDUResponse;
-import uz.yt.ofd.codec.applet.command.Applet;
-import uz.yt.ofd.codec.applet.command.GetVersionCommand;
 import uz.yt.ofd.codec.applet.SW;
-import uz.yt.ofd.codec.applet.command.GetFiscalMemoryInfoCommand;
-import uz.yt.ofd.codec.applet.command.GetInfoCommand;
-import uz.yt.ofd.codec.applet.command.GetLastRegisteredReceiptResponseCommand;
-import uz.yt.ofd.codec.applet.command.GetReceiptCommand;
-import uz.yt.ofd.codec.applet.command.GetReceiptCountCommand;
-import uz.yt.ofd.codec.applet.command.GetReceiptInfoCommand;
-import uz.yt.ofd.codec.applet.command.GetZReportCommand;
-import uz.yt.ofd.codec.applet.command.GetZReportCountCommand;
-import uz.yt.ofd.codec.applet.command.GetZReportInfoCommand;
-import uz.yt.ofd.codec.applet.command.GetZReportsStatsCommand;
-import uz.yt.ofd.codec.applet.command.OpenCloseZReportCommand;
-import uz.yt.ofd.codec.applet.command.RegisterReceiptCommand;
-import uz.yt.ofd.codec.applet.command.RescanReceiptsCommand;
-import uz.yt.ofd.codec.applet.decoder.DateDecoder;
-import uz.yt.ofd.codec.applet.decoder.FiscalMemoryInfoDecoder;
-import uz.yt.ofd.codec.applet.decoder.InfoDecoder;
-import uz.yt.ofd.codec.applet.decoder.ReceiptCountDecoder;
-import uz.yt.ofd.codec.applet.decoder.ReceiptDecoder;
-import uz.yt.ofd.codec.applet.decoder.ReceiptInfoDecoder;
-import uz.yt.ofd.codec.applet.decoder.RegisteredReceiptResponseDecoder;
-import uz.yt.ofd.codec.applet.decoder.TotalBlockDecoder;
-import uz.yt.ofd.codec.applet.decoder.VersionDecoder;
-import uz.yt.ofd.codec.applet.decoder.VoidDecoder;
-import uz.yt.ofd.codec.applet.decoder.ZReportCountDecoder;
-import uz.yt.ofd.codec.applet.decoder.ZReportDecoder;
-import uz.yt.ofd.codec.applet.decoder.ZReportInfoDecoder;
-import uz.yt.ofd.codec.applet.decoder.ZReportsStatsDecoder;
-import uz.yt.ofd.codec.applet.dto.AdvanceReceipt;
-import uz.yt.ofd.codec.applet.dto.CreditReceipt;
-import uz.yt.ofd.codec.applet.dto.FiscalMemoryInfo;
-import uz.yt.ofd.codec.applet.dto.SaleRefundReceipt;
-import uz.yt.ofd.codec.applet.dto.Info;
-import uz.yt.ofd.codec.applet.dto.ReceiptInfo;
-import uz.yt.ofd.codec.applet.dto.RegisteredReceiptResponse;
-import uz.yt.ofd.codec.applet.dto.TotalBlock;
-import uz.yt.ofd.codec.applet.dto.ZReport;
-import uz.yt.ofd.codec.applet.dto.ZReportInfo;
-import uz.yt.ofd.codec.applet.dto.ZReportsStats;
+import uz.yt.ofd.codec.applet.command.*;
+import uz.yt.ofd.codec.applet.decoder.*;
+import uz.yt.ofd.codec.applet.dto.*;
 import uz.yt.ofd.codec.applet.exception.SWException;
 import uz.yt.ofd.codec.crypto.GOST28147Engine;
-import uz.yt.ofd.codec.receipt7.Location;
+import uz.yt.ofd.codec.message5.FileType;
+import uz.yt.ofd.codec.message5.SenderInfo;
 import uz.yt.ofd.codec.receipt7.Receipt;
-import uz.yt.ofd.codec.receipt7.ReceiptItem;
+import uz.yt.ofd.codec.receipt7.*;
 import uz.yt.ofd.codec.tlv.OID;
 import uz.yt.ofd.codec.tlv.OIDValue;
 import uz.yt.ofd.codec.tlv.TLV;
 import uz.yt.ofd.codec.tlv.TVS;
-import uz.yt.ofd.codec.DumpDescriptor;
-import uz.yt.ofd.codec.applet.command.AckReceiptCommand;
-import uz.yt.ofd.codec.applet.command.AckZReportCommand;
-import uz.yt.ofd.codec.applet.command.GetLastRegisteredReceipt3StepResponseCommand;
-import uz.yt.ofd.codec.applet.command.RegisterReceipt3StepCommand;
-import uz.yt.ofd.codec.applet.command.SignEncryptRegisteredReceipt3StepCommand;
-import uz.yt.ofd.codec.applet.decoder.ByteArrayDecoder;
-import uz.yt.ofd.codec.message5.FileType;
-import uz.yt.ofd.codec.message5.SenderInfo;
-import uz.yt.ofd.codec.receipt7.CommissionInfo;
-import uz.yt.ofd.codec.receipt7.ExtraInfo;
-import uz.yt.ofd.codec.receipt7.ReceiptCodec;
-import uz.yt.ofd.codec.receipt7.RefundInfo;
+
+import javax.smartcardio.Card;
+import javax.smartcardio.CardTerminal;
+import javax.smartcardio.CardTerminals;
+import javax.smartcardio.TerminalFactory;
+import javax.swing.*;
+import javax.swing.table.TableModel;
+import java.awt.event.*;
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Type;
+import java.security.SecureRandom;
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 /**
  * @author administrator
@@ -433,6 +366,7 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                         if (response.getSw() != SW.NO_ERROR.code) {
                             throw new SWException(response.getSw());
                         }
+
                         try {
                             String appletVersion = new GetVersionCommand().run(apduio, VersionDecoder.class).decode();
                             appendDebugLogKeyValue("AppletVersion", appletVersion, 32);
@@ -445,6 +379,7 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                             }
 
                             callback.run(apduio);
+
                             appendDebugLog("\n");
                         } finally {
                             apduio.transmit(Applet.deselectCommand());
@@ -911,7 +846,8 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                                     ByteArrayDecoder bad2 = new GetLastRegisteredReceipt3StepResponseCommand((short) 128, (short) leftSize).run(apduio, ByteArrayDecoder.class);
                                     decoder = new RegisteredReceiptResponseDecoder(Utils.append(bad1.decode(), bad2.decode()));
                                 } else {
-                                    decoder = new RegisterReceiptCommand(sale, hash.toByteArray(), totalBlock.toByteArray()).run(apduio, RegisteredReceiptResponseDecoder.class);
+                                    decoder = new RegisterReceiptCommand(sale, hash.toByteArray(), totalBlock.toByteArray())
+                                            .run(apduio, RegisteredReceiptResponseDecoder.class);
                                 }
 
                                 RegisteredReceiptResponse info = decoder.decode();

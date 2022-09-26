@@ -10,7 +10,6 @@ import java.util.ResourceBundle;
 import javax.swing.UIManager;
 import javax.swing.UIManager.LookAndFeelInfo;
 
-import timber.log.Timber;
 import uz.yt.ofd.acr.sample.app.gui.TestFrameController;
 
 /**
@@ -42,7 +41,6 @@ public class Application {
     }
 
     protected void run() throws SQLException {
-        System.out.println("version " + VERSION);
         TestFrameController tfc = new TestFrameController(VERSION);
         tfc.show();
     }
