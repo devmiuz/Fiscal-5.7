@@ -372,11 +372,7 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                             appendDebugLogKeyValue("AppletVersion", appletVersion, 32);
                             appendDebugLog("\n");
 
-                            if (appletVersion.equals("0323")) {
-                                experimentalFeatures = true;
-                            } else {
-                                experimentalFeatures = false;
-                            }
+                            experimentalFeatures = appletVersion.equals("0323");
 
                             callback.run(apduio);
 
