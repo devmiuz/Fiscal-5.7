@@ -35,8 +35,10 @@ public class CardChannelAPDUIO implements APDUIO {
     @Override
     public APDUResponse transmit(APDUCommand command) throws Exception {
         appendAPDULog(command.toString());
+
         ResponseAPDU r = cardChannel.transmit(new CommandAPDU(command.getBytes()));
         APDUResponse response = new APDUResponse(r.getBytes());
+
         appendAPDULog(response.toString());
         return response;
     }

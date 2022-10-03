@@ -74,18 +74,25 @@ public class TestFrameController implements TLVLogger, SenderConfig {
 
     @Override
     public void appendDebugLog(String message, Object... args) {
-        frame.taDebugLog.append(String.format(message, args));
+        String messageDetails = String.format(message, args);
+        System.out.println(messageDetails);
+
+        frame.taDebugLog.append(messageDetails);
         frame.taDebugLog.setCaretPosition(frame.taDebugLog.getDocument().getLength());
     }
 
     @Override
     public void appendDebugLogKeyValue(String key, String value, int keyLetfPad) {
-        frame.taDebugLog.append(String.format("%-" + keyLetfPad + "s: %s\n", key, value));
+        String message = String.format("%-" + keyLetfPad + "s: %s\n", key, value);
+        System.out.println(message);
+
+        frame.taDebugLog.append(message);
         frame.taDebugLog.setCaretPosition(frame.taDebugLog.getDocument().getLength());
     }
 
     public void appendDebugLogAsJson(Object o) {
         String jsonObject = gson.toJson(o);
+        System.out.println(jsonObject);
         frame.taDebugLog.append(jsonObject + "\n");
         frame.taDebugLog.setCaretPosition(frame.taDebugLog.getDocument().getLength());
     }
@@ -582,8 +589,10 @@ public class TestFrameController implements TLVLogger, SenderConfig {
         frame.btnGetInfo.addActionListener(e -> {
             System.out.println("btnGetInfo clicked");
             runCardCommand(e.getSource(), apduio -> {
+
                 InfoDecoder decoder = new GetInfoCommand().run(apduio, InfoDecoder.class);
                 Info info = decoder.decode();
+
                 appendDebugLogAsDumpDesciptor(decoder.getDumpDescriptor());
                 appendDebugLogAsJson(info);
             });
@@ -591,9 +600,10 @@ public class TestFrameController implements TLVLogger, SenderConfig {
 
 
         frame.btnGetFiscalMemoryInfo.addActionListener(e -> runCardCommand(e.getSource(), apduio -> {
-            System.out.println("btnGetFiscalMemoryInfo info clicked");
+            System.out.println("btnGetFiscalMemoryInfo clicked");
             FiscalMemoryInfoDecoder decoder = new GetFiscalMemoryInfoCommand().run(apduio, FiscalMemoryInfoDecoder.class);
             FiscalMemoryInfo info = decoder.decode();
+
             appendDebugLogAsDumpDesciptor(decoder.getDumpDescriptor());
             appendDebugLogAsJson(info);
         }));
@@ -646,28 +656,16 @@ public class TestFrameController implements TLVLogger, SenderConfig {
         frame.btnQueueToSendZReportByIndex.addActionListener(queueToSendZReport);
         frame.btnQueueToSendZReportByNumber.addActionListener(queueToSendZReport);
 
-        frame.btnOpenZReport.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                runCardCommand(e.getSource(), new Callback() {
-                    @Override
-                    public void run(APDUIO apduio) throws Exception {
-                        new OpenCloseZReportCommand(true, dateFormat.parse((String) frame.fteZReportDateTime.getText())).run(apduio, VoidDecoder.class);
-                    }
-                });
-            }
+        frame.btnOpenZReport.addActionListener(e -> {
+            System.out.println("btnOpenZReport clicked");
+            runCardCommand(e.getSource(), apduio -> new OpenCloseZReportCommand(true, dateFormat.parse(frame.fteZReportDateTime.getText()))
+                    .run(apduio, VoidDecoder.class));
         });
 
-        frame.btnCloseZReport.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                runCardCommand(e.getSource(), new Callback() {
-                    @Override
-                    public void run(APDUIO apduio) throws Exception {
-                        new OpenCloseZReportCommand(false, dateFormat.parse((String) frame.fteZReportDateTime.getText())).run(apduio, VoidDecoder.class);
-                    }
-                });
-            }
+        frame.btnCloseZReport.addActionListener(e -> {
+            System.out.println("btnCloseZReport clicked");
+
+            runCardCommand(e.getSource(), apduio -> new OpenCloseZReportCommand(false, dateFormat.parse((String) frame.fteZReportDateTime.getText())).run(apduio, VoidDecoder.class));
         });
 
         frame.btnGetReceiptCount.addActionListener(new ActionListener() {
@@ -731,167 +729,158 @@ public class TestFrameController implements TLVLogger, SenderConfig {
             }
         });
 
-        frame.btnRescanReceipts.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                runCardCommand(e.getSource(), new Callback() {
-                    @Override
-                    public void run(APDUIO apduio) throws Exception {
-                        Date firstReceiptTime = new RescanReceiptsCommand().run(apduio, DateDecoder.class).decode();
-                        if (firstReceiptTime != null) {
-                            appendDebugLogKeyValue("FirstReceiptTime", dateFormat.format(firstReceiptTime), 32);
+        frame.btnRescanReceipts.addActionListener(e -> {
+            System.out.println("btnRescanReceipts clicked");
+            runCardCommand(e.getSource(), apduio -> {
+                Date firstReceiptTime = new RescanReceiptsCommand().run(apduio, DateDecoder.class).decode();
+                if (firstReceiptTime != null) {
+                    appendDebugLogKeyValue("FirstReceiptTime", dateFormat.format(firstReceiptTime), 32);
+                }
+            });
+        });
+
+        frame.btnQueueToSendFullReceipt.addActionListener(e -> {
+
+            System.out.println("btnQueueToSendFullReceipt clicked");
+
+            String receiptJson = frame.taReceiptJson.getText();
+            String receiptTypeName = (String) frame.cbReceiptType.getSelectedItem();
+
+            if (receiptJson != null && !receiptJson.isEmpty() && receiptTypeName != null) {
+                runCardCommand(e.getSource(), apduio -> {
+
+                    // create receipt
+                    Receipt receipt = gson.fromJson(receiptJson, Receipt.class);
+
+                    if (htmlDump) {
+                        appendDebugLogAsText(String.format("---HTML---\n\n%s\n\n---HTML---\n", receiptToHtmlTable(receipt)));
+                    }
+
+                    ByteArrayOutputStream encodedReceipt = new ByteArrayOutputStream();
+                    ByteArrayOutputStream totalBlock = new ByteArrayOutputStream();
+                    ByteArrayOutputStream hash = new ByteArrayOutputStream();
+                    boolean sale = true;
+                    ReceiptCodec.ReceiptType receiptType;
+                    switch (receiptTypeName) {
+                        case "Sale":
+                            sale = true;
+                            receiptType = ReceiptCodec.ReceiptType.SaleRefund;
+                            break;
+                        case "Refund":
+                            sale = false;
+                            receiptType = ReceiptCodec.ReceiptType.SaleRefund;
+                            break;
+                        case "Advance":
+                            receiptType = ReceiptCodec.ReceiptType.Advance;
+                            break;
+                        case "Credit":
+                            receiptType = ReceiptCodec.ReceiptType.Credit;
+                            break;
+                        default:
+                            throw new AssertionError(receiptTypeName);
+                    }
+
+                    // get server addresses
+                    TableModel model = frame.tableServerAddress.getModel();
+                    final List<String> serverAddresses = new LinkedList();
+                    for (int i = 0; i < model.getRowCount(); i++) {
+                        String sa = (String) model.getValueAt(i, 0);
+                        if (sa != null && !sa.trim().isEmpty()) {
+                            serverAddresses.add(sa);
+                        }
+                    }
+                    fiscalSignValidator.setServerAddresses(serverAddresses);
+
+                    // encode receipt
+                    ReceiptCodec.encode(receipt, receiptType, sale, encodedReceipt, totalBlock, hash, fiscalSignValidator);
+                    byte[] encodedReceiptRaw = encodedReceipt.toByteArray();
+                    GOST28147Engine cipher = new GOST28147Engine();
+                    if ((encodedReceiptRaw.length % cipher.getBlockSize()) != 0) {
+                        throw new IllegalArgumentException(String.format("Bad encoded receipt data size %d, it should be divisible by %d", encodedReceiptRaw.length, cipher.getBlockSize()));
+                    }
+
+                    // for debug print
+                    TVS tvs = TLV.decode(encodedReceipt.toByteArray());
+                    appendDebugLogTLV(tvs, "receipt", ReceiptCodec.TAG_DESCRIPTIONS, new String[]{"8d.8c"});
+
+                    if (receiptType == ReceiptCodec.ReceiptType.SaleRefund) {
+
+                        byte[] totalBlockRaw = totalBlock.toByteArray();
+                        byte[] encodedReceiptHash = hash.toByteArray();
+
+                        // for debug print
+                        TotalBlockDecoder tbd = new TotalBlockDecoder(totalBlockRaw);
+                        TotalBlock tb = tbd.decode();
+                        appendDebugLogAsDumpDesciptor(tbd.getDumpDescriptor());
+                        appendDebugLogAsJson(tb);
+                        appendDebugLogAsText("");
+
+                        DumpDescriptor ddrrd = new DumpDescriptor("REGISTER_RECEIPT_DATA", Utils.append(encodedReceiptHash, totalBlockRaw));
+                        ddrrd.readHex("EncodedReceiptHash", 0, encodedReceiptHash.length);
+                        ddrrd.readHex("TotalBlock", encodedReceiptHash.length, totalBlockRaw.length);
+                        appendDebugLogAsText(ddrrd);
+
+                        RegisteredReceiptResponseDecoder decoder;
+                        if (experimentalFeatures) {
+                            new RegisterReceipt3StepCommand(sale, hash.toByteArray(), totalBlock.toByteArray()).run(apduio, VoidDecoder.class);
+                            new SignEncryptRegisteredReceipt3StepCommand().run(apduio, VoidDecoder.class);
+//                                    ByteArrayDecoder bad = new GetLastRegisteredReceipt3StepResponseCommand((short) 0, (short) 0).run(apduio, ByteArrayDecoder.class);
+//                                    decoder = new RegisteredReceiptResponseDecoder(bad.decode());
+
+                            int leftSize = RegisteredReceiptResponseDecoder.REGISTERED_RECEIPT_SIZE;
+                            ByteArrayDecoder bad1 = new GetLastRegisteredReceipt3StepResponseCommand((short) 0, (short) 128).run(apduio, ByteArrayDecoder.class);
+                            leftSize -= 128;
+                            ByteArrayDecoder bad2 = new GetLastRegisteredReceipt3StepResponseCommand((short) 128, (short) leftSize).run(apduio, ByteArrayDecoder.class);
+                            decoder = new RegisteredReceiptResponseDecoder(Utils.append(bad1.decode(), bad2.decode()));
+                        } else {
+                            decoder = new RegisterReceiptCommand(sale, hash.toByteArray(), totalBlock.toByteArray())
+                                    .run(apduio, RegisteredReceiptResponseDecoder.class);
+                        }
+
+                        RegisteredReceiptResponse info = decoder.decode();
+                        appendDebugLogAsDumpDesciptor(decoder.getDumpDescriptor());
+                        appendDebugLogAsJson(info);
+
+                        // encrypt encoded receipt
+                        cipher.init(true, cipher.getSBox("D-A"), info.getKey());
+                        int blocks = encodedReceiptRaw.length / cipher.getBlockSize();
+                        byte[] file = new byte[encodedReceiptRaw.length];
+                        for (int bn = 0; bn < blocks; bn++) {
+                            cipher.processBlock(encodedReceiptRaw, bn * cipher.getBlockSize(), file, bn * cipher.getBlockSize());
+                        }
+
+                        SaleRefundReceipt saleRefundReceipt = new SaleRefundReceipt();
+                        saleRefundReceipt.setTerminalID(info.getTerminalID());
+                        saleRefundReceipt.setReceiptSeq(info.getReceiptSeq());
+                        saleRefundReceipt.setTransactionTime(info.getTransactionTime());
+                        saleRefundReceipt.setRegisterReceiptResponse(info.getReceiptInfo());
+                        saleRefundReceipt.setEncyptedReceiptBody(file);
+
+                        saveSaleRefundReceipt(saleRefundReceipt);
+
+                    } else {
+                        InfoDecoder decoder = new GetInfoCommand().run(apduio, InfoDecoder.class);
+                        Info info = decoder.decode();
+                        if (receiptType == ReceiptCodec.ReceiptType.Advance) {
+                            AdvanceReceipt advanceReceipt = new AdvanceReceipt();
+                            advanceReceipt.setTerminalID(info.getTerminalID());
+                            advanceReceipt.setCreateTime(receipt.getTime());
+                            advanceReceipt.setEncodedReceiptBody(encodedReceiptRaw);
+
+                            saveAdvanceReceipt(advanceReceipt);
+                        }
+                        if (receiptType == ReceiptCodec.ReceiptType.Credit) {
+                            CreditReceipt creditReceipt = new CreditReceipt();
+                            creditReceipt.setTerminalID(info.getTerminalID());
+                            creditReceipt.setCreateTime(receipt.getTime());
+                            creditReceipt.setEncodedReceiptBody(encodedReceiptRaw);
+
+                            saveCreditReceipt(creditReceipt);
                         }
                     }
                 });
             }
-        });
 
-        frame.btnQueueToSendFullReceipt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                String receiptJson = frame.taReceiptJson.getText();
-                String receiptTypeName = (String) frame.cbReceiptType.getSelectedItem();
-
-                if (receiptJson != null && !receiptJson.isEmpty() && receiptTypeName != null) {
-                    runCardCommand(e.getSource(), new Callback() {
-                        @Override
-                        public void run(APDUIO apduio) throws Exception {
-
-                            // create receipt
-                            Receipt receipt = gson.fromJson(receiptJson, Receipt.class);
-
-                            if (htmlDump) {
-                                appendDebugLogAsText(String.format("---HTML---\n\n%s\n\n---HTML---\n", receiptToHtmlTable(receipt)));
-                            }
-
-                            ByteArrayOutputStream encodedReceipt = new ByteArrayOutputStream();
-                            ByteArrayOutputStream totalBlock = new ByteArrayOutputStream();
-                            ByteArrayOutputStream hash = new ByteArrayOutputStream();
-                            boolean sale = true;
-                            ReceiptCodec.ReceiptType receiptType;
-                            switch (receiptTypeName) {
-                                case "Sale":
-                                    sale = true;
-                                    receiptType = ReceiptCodec.ReceiptType.SaleRefund;
-                                    break;
-                                case "Refund":
-                                    sale = false;
-                                    receiptType = ReceiptCodec.ReceiptType.SaleRefund;
-                                    break;
-                                case "Advance":
-                                    receiptType = ReceiptCodec.ReceiptType.Advance;
-                                    break;
-                                case "Credit":
-                                    receiptType = ReceiptCodec.ReceiptType.Credit;
-                                    break;
-                                default:
-                                    throw new AssertionError(receiptTypeName);
-                            }
-
-                            // get server addresses
-                            TableModel model = frame.tableServerAddress.getModel();
-                            final List<String> serverAddresses = new LinkedList();
-                            for (int i = 0; i < model.getRowCount(); i++) {
-                                String sa = (String) model.getValueAt(i, 0);
-                                if (sa != null && !sa.trim().isEmpty()) {
-                                    serverAddresses.add(sa);
-                                }
-                            }
-                            fiscalSignValidator.setServerAddresses(serverAddresses);
-
-                            // encode receipt
-                            ReceiptCodec.encode(receipt, receiptType, sale, encodedReceipt, totalBlock, hash, fiscalSignValidator);
-                            byte[] encodedReceiptRaw = encodedReceipt.toByteArray();
-                            GOST28147Engine cipher = new GOST28147Engine();
-                            if ((encodedReceiptRaw.length % cipher.getBlockSize()) != 0) {
-                                throw new IllegalArgumentException(String.format("Bad encoded receipt data size %d, it should be divisible by %d", encodedReceiptRaw.length, cipher.getBlockSize()));
-                            }
-
-                            // for debug print
-                            TVS tvs = TLV.decode(encodedReceipt.toByteArray());
-                            appendDebugLogTLV(tvs, "receipt", ReceiptCodec.TAG_DESCRIPTIONS, new String[]{"8d.8c"});
-
-                            if (receiptType == ReceiptCodec.ReceiptType.SaleRefund) {
-
-                                byte[] totalBlockRaw = totalBlock.toByteArray();
-                                byte[] encodedReceiptHash = hash.toByteArray();
-
-                                // for debug print
-                                TotalBlockDecoder tbd = new TotalBlockDecoder(totalBlockRaw);
-                                TotalBlock tb = tbd.decode();
-                                appendDebugLogAsDumpDesciptor(tbd.getDumpDescriptor());
-                                appendDebugLogAsJson(tb);
-                                appendDebugLogAsText("");
-
-                                DumpDescriptor ddrrd = new DumpDescriptor("REGISTER_RECEIPT_DATA", Utils.append(encodedReceiptHash, totalBlockRaw));
-                                ddrrd.readHex("EncodedReceiptHash", 0, encodedReceiptHash.length);
-                                ddrrd.readHex("TotalBlock", encodedReceiptHash.length, totalBlockRaw.length);
-                                appendDebugLogAsText(ddrrd);
-
-                                RegisteredReceiptResponseDecoder decoder;
-                                if (experimentalFeatures) {
-                                    new RegisterReceipt3StepCommand(sale, hash.toByteArray(), totalBlock.toByteArray()).run(apduio, VoidDecoder.class);
-                                    new SignEncryptRegisteredReceipt3StepCommand().run(apduio, VoidDecoder.class);
-//                                    ByteArrayDecoder bad = new GetLastRegisteredReceipt3StepResponseCommand((short) 0, (short) 0).run(apduio, ByteArrayDecoder.class);
-//                                    decoder = new RegisteredReceiptResponseDecoder(bad.decode());
-
-                                    int leftSize = RegisteredReceiptResponseDecoder.REGISTERED_RECEIPT_SIZE;
-                                    ByteArrayDecoder bad1 = new GetLastRegisteredReceipt3StepResponseCommand((short) 0, (short) 128).run(apduio, ByteArrayDecoder.class);
-                                    leftSize -= 128;
-                                    ByteArrayDecoder bad2 = new GetLastRegisteredReceipt3StepResponseCommand((short) 128, (short) leftSize).run(apduio, ByteArrayDecoder.class);
-                                    decoder = new RegisteredReceiptResponseDecoder(Utils.append(bad1.decode(), bad2.decode()));
-                                } else {
-                                    decoder = new RegisterReceiptCommand(sale, hash.toByteArray(), totalBlock.toByteArray())
-                                            .run(apduio, RegisteredReceiptResponseDecoder.class);
-                                }
-
-                                RegisteredReceiptResponse info = decoder.decode();
-                                appendDebugLogAsDumpDesciptor(decoder.getDumpDescriptor());
-                                appendDebugLogAsJson(info);
-
-                                // encrypt encoded receipt 
-                                cipher.init(true, cipher.getSBox("D-A"), info.getKey());
-                                int blocks = encodedReceiptRaw.length / cipher.getBlockSize();
-                                byte[] file = new byte[encodedReceiptRaw.length];
-                                for (int bn = 0; bn < blocks; bn++) {
-                                    cipher.processBlock(encodedReceiptRaw, bn * cipher.getBlockSize(), file, bn * cipher.getBlockSize());
-                                }
-
-                                SaleRefundReceipt saleRefundReceipt = new SaleRefundReceipt();
-                                saleRefundReceipt.setTerminalID(info.getTerminalID());
-                                saleRefundReceipt.setReceiptSeq(info.getReceiptSeq());
-                                saleRefundReceipt.setTransactionTime(info.getTransactionTime());
-                                saleRefundReceipt.setRegisterReceiptResponse(info.getReceiptInfo());
-                                saleRefundReceipt.setEncyptedReceiptBody(file);
-
-                                saveSaleRefundReceipt(saleRefundReceipt);
-
-                            } else {
-                                InfoDecoder decoder = new GetInfoCommand().run(apduio, InfoDecoder.class);
-                                Info info = decoder.decode();
-                                if (receiptType == ReceiptCodec.ReceiptType.Advance) {
-                                    AdvanceReceipt advanceReceipt = new AdvanceReceipt();
-                                    advanceReceipt.setTerminalID(info.getTerminalID());
-                                    advanceReceipt.setCreateTime(receipt.getTime());
-                                    advanceReceipt.setEncodedReceiptBody(encodedReceiptRaw);
-
-                                    saveAdvanceReceipt(advanceReceipt);
-                                }
-                                if (receiptType == ReceiptCodec.ReceiptType.Credit) {
-                                    CreditReceipt creditReceipt = new CreditReceipt();
-                                    creditReceipt.setTerminalID(info.getTerminalID());
-                                    creditReceipt.setCreateTime(receipt.getTime());
-                                    creditReceipt.setEncodedReceiptBody(encodedReceiptRaw);
-
-                                    saveCreditReceipt(creditReceipt);
-                                }
-                            }
-                        }
-                    });
-                }
-
-            }
         });
 
         ActionListener listFiles = e -> {
