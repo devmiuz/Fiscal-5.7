@@ -24,6 +24,7 @@ import uz.yt.ofd.codec.applet.decoder.*;
 import uz.yt.ofd.codec.applet.dto.*;
 import uz.yt.ofd.codec.applet.exception.SWException;
 import uz.yt.ofd.codec.crypto.GOST28147Engine;
+import uz.yt.ofd.codec.message5.File;
 import uz.yt.ofd.codec.message5.FileType;
 import uz.yt.ofd.codec.message5.SenderInfo;
 import uz.yt.ofd.codec.receipt7.Receipt;
@@ -741,6 +742,10 @@ public class TestFrameController implements TLVLogger, SenderConfig {
         });
 
         frame.btnQueueToSendFullReceipt.addActionListener(e -> {
+            System.out.println("test " + (short) (27904));
+
+            byte[] recordId = ("123456789").getBytes();
+            System.out.println("recordId -> " + Arrays.toString(recordId));
 
             System.out.println("btnQueueToSendFullReceipt clicked");
 
@@ -938,7 +943,7 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                 for (String terminalID : byTerminalID.keySet()) {
                     appendDebugLogAsText(String.format("%s: %d", terminalID, byTerminalID.get(terminalID)));
                 }
-                if (byTerminalID.size() == 0){
+                if (byTerminalID.size() == 0) {
                     appendDebugLogAsText("Ack count = 0");
                 }
             } catch (Throwable t) {
@@ -964,7 +969,11 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                                 switch (file.getType()) {
                                     case SaleRefundReceiptAck:
                                         try {
-                                            new AckReceiptCommand(file.getBody()).run(apduio, VoidDecoder.class);
+                                            System.out.println("ack body -> " + Arrays.toString(file.getBody()));
+                                            byte[] ackd = {102, 127, -50, -52, 100, 23, 40, 98, -14, -2, 110, 13, -104, 64, 120, 24, 120, -89, -37, 125, 22, -107, -94, 86, 64, 37, -99, -19, 23, -48, -66, -86, 76, -100, -128, -67, -40, 77, -73, 109, -85, -58, 109, 121, 121, -103, -97, -35};
+                                            System.out.println("ackd size " + ackd.length);
+                                            System.out.println("ack body size " + file.getBody().length);
+                                            new AckReceiptCommand(ackd).run(apduio, VoidDecoder.class);
                                             appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
                                             states.put(file.getRecordID(), Storage.State.Ack);
                                         } catch (Throwable t) {

@@ -79,9 +79,17 @@ public class TCPSender implements Sender {
             for (String teminalID : filesByTerminalID.keySet()) {
                 List<File> sendFiles = new LinkedList();
                 for (Storage.FileInfo file : filesByTerminalID.get(teminalID)) {
-                    sendFiles.add(new File(file.getType().value, file.getVersion(), file.getHeader(), file.getBody(), (byte) 0, file.getRecordID().getBytes()));
+                    byte[] recordId = file.getRecordID().getBytes();
+                    sendFiles.add(new File(file.getType().value, file.getVersion(), file.getHeader(), file.getBody(), (byte) 0,recordId ));
+                    System.out.println("recordId -> "+Arrays.toString(recordId));
                 }
-                Request req = new Request(teminalID, new Date(), senderInfo, sendFiles.toArray(new File[0]));
+                File[] sentFiles = sendFiles.toArray(new File[0]);
+                System.out.println("terminalId -> " + teminalID);
+                System.out.println("senderInfo -> name : " + senderInfo.getName() + " sn : " + senderInfo.getSN() + " version : " + senderInfo.getVersion());
+                System.out.println("sentFiles size -> " + sentFiles.length);
+                File rawFile = sentFiles[0];
+                System.out.println("sentFile -> type : " + rawFile.getType() + " tag : " + Arrays.toString(rawFile.getTag()) + " version " + rawFile.getVersion());
+                Request req = new Request(teminalID, new Date(), senderInfo, sentFiles);
                 byte[] reqRaw = req.encode();
 
                 TVS tvs;
