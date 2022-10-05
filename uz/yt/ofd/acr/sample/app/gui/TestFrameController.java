@@ -369,6 +369,8 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                         appendDebugLog("\n");
 
                         APDUIO apduio = new CardChannelAPDUIO(card.getBasicChannel(), frame.taDebugLog);
+
+
                         APDUResponse response = apduio.transmit(Applet.selectCommand());
                         if (response.getSw() != SW.NO_ERROR.code) {
                             throw new SWException(response.getSw());
@@ -658,8 +660,7 @@ public class TestFrameController implements TLVLogger, SenderConfig {
 
         frame.btnOpenZReport.addActionListener(e -> {
             System.out.println("btnOpenZReport clicked");
-            runCardCommand(e.getSource(), apduio -> new OpenCloseZReportCommand(true, dateFormat.parse(frame.fteZReportDateTime.getText()))
-                    .run(apduio, VoidDecoder.class));
+            runCardCommand(e.getSource(), apduio -> new OpenCloseZReportCommand(true, dateFormat.parse(frame.fteZReportDateTime.getText())).run(apduio, VoidDecoder.class));
         });
 
         frame.btnCloseZReport.addActionListener(e -> {
@@ -833,8 +834,7 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                             ByteArrayDecoder bad2 = new GetLastRegisteredReceipt3StepResponseCommand((short) 128, (short) leftSize).run(apduio, ByteArrayDecoder.class);
                             decoder = new RegisteredReceiptResponseDecoder(Utils.append(bad1.decode(), bad2.decode()));
                         } else {
-                            decoder = new RegisterReceiptCommand(sale, hash.toByteArray(), totalBlock.toByteArray())
-                                    .run(apduio, RegisteredReceiptResponseDecoder.class);
+                            decoder = new RegisterReceiptCommand(sale, hash.toByteArray(), totalBlock.toByteArray()).run(apduio, RegisteredReceiptResponseDecoder.class);
                         }
 
                         RegisteredReceiptResponse info = decoder.decode();
@@ -897,12 +897,9 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                 }
                 model.clear();
                 frame.tableFiles.setModel(model);
-                storage.listFileInfo(table, new Storage.Callback() {
-                    @Override
-                    public boolean next(Storage.FileInfo file) {
-                        model.add(file);
-                        return true;
-                    }
+                storage.listFileInfo(table, file -> {
+                    model.add(file);
+                    return true;
                 });
             } catch (Throwable t) {
                 appendDebugLogKeyValue("ERROR", t.getMessage(), 10);
@@ -913,39 +910,36 @@ public class TestFrameController implements TLVLogger, SenderConfig {
         frame.btnListSendFiles.addActionListener(listFiles);
         frame.btnListRecvFiles.addActionListener(listFiles);
 
-        frame.btnSend.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                appendDebugLog("---" + ((JButton) e.getSource()).getText() + "---\n");
+        frame.btnSend.addActionListener(e -> {
+            appendDebugLog("---" + ((JButton) e.getSource()).getText() + "---\n");
 
-                TableModel model = frame.tableServerAddress.getModel();
-                final List<String> serverAddresses = new LinkedList();
-                for (int i = 0; i < model.getRowCount(); i++) {
-                    String sa = (String) model.getValueAt(i, 0);
-                    if (sa != null && !sa.trim().isEmpty()) {
-                        serverAddresses.add(sa);
-                    }
+            TableModel model = frame.tableServerAddress.getModel();
+            final List<String> serverAddresses = new LinkedList();
+            for (int i = 0; i < model.getRowCount(); i++) {
+                String sa = (String) model.getValueAt(i, 0);
+                if (sa != null && !sa.trim().isEmpty()) {
+                    serverAddresses.add(sa);
                 }
-                sender.Sync(serverAddresses);
             }
+            sender.Sync(serverAddresses);
         });
 
         frame.btnGetAckCount.addActionListener(e -> {
             appendDebugLog("---" + ((JButton) e.getSource()).getText() + "---\n");
             try {
                 final Map<String, Integer> byTerminalID = new HashMap();
-                storage.listFileByState(Storage.Table.Recv, Storage.State.New, new Storage.Callback() {
-                    @Override
-                    public boolean next(Storage.FileInfo file) {
-                        if (!byTerminalID.containsKey(file.getTerminalID())) {
-                            byTerminalID.put(file.getTerminalID(), 0);
-                        }
-                        byTerminalID.put(file.getTerminalID(), byTerminalID.get(file.getTerminalID()) + 1);
-                        return true;
+                storage.listFileByState(Storage.Table.Recv, Storage.State.New, file -> {
+                    if (!byTerminalID.containsKey(file.getTerminalID())) {
+                        byTerminalID.put(file.getTerminalID(), 0);
                     }
+                    byTerminalID.put(file.getTerminalID(), byTerminalID.get(file.getTerminalID()) + 1);
+                    return true;
                 });
                 for (String terminalID : byTerminalID.keySet()) {
                     appendDebugLogAsText(String.format("%s: %d", terminalID, byTerminalID.get(terminalID)));
+                }
+                if (byTerminalID.size() == 0){
+                    appendDebugLogAsText("Ack count = 0");
                 }
             } catch (Throwable t) {
                 appendDebugLogKeyValue("ERROR", t.getMessage(), 10);
@@ -962,92 +956,91 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                     final String terminalID = info.getTerminalID();
 
                     final Map<String, Storage.State> states = new HashMap();
-                    storage.listFileByState(Storage.Table.Recv, Storage.State.New, new Storage.Callback() {
-                        @Override
-                        public boolean next(Storage.FileInfo file) {
-                            try {
-                                if (terminalID.equals(file.getTerminalID())) {
-                                    switch (file.getType()) {
-                                        case SaleRefundReceiptAck:
-                                            try {
-                                                new AckReceiptCommand(file.getBody()).run(apduio, VoidDecoder.class);
-                                                appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
-                                                states.put(file.getRecordID(), Storage.State.Ack);
-                                            } catch (Throwable t) {
-                                                if (t instanceof SWException) {
-                                                    SWException sw = (SWException) t;
-                                                    if (sw.getSw() == SW.ERROR_RECEIPT_NOT_FOUND) {
-                                                        // probably it was acked before
-                                                        states.put(file.getRecordID(), Storage.State.Ack);
-                                                        appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK SW ERROR %s: %s => %04x - RECEIPT_NOT_FOUND", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
-                                                    } else {
-                                                        states.put(file.getRecordID(), Storage.State.AckError);
-                                                        appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK SW ERROR %s: %s => %04x", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
-                                                    }
-                                                } else {
-                                                    appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK FAIL %s: %s => %s", terminalID, HexBin.encode(file.getHeader(), 8, 8), t.getMessage()));
-                                                }
-                                            }
-                                            break;
-                                        case ZReportAck:
-                                            try {
-                                                new AckZReportCommand(file.getBody()).run(apduio, VoidDecoder.class);
-                                                appendDebugLogAsText(String.format("ZREPORT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
-                                                states.put(file.getRecordID(), Storage.State.Ack);
-                                            } catch (Throwable t) {
-                                                if (t instanceof SWException) {
-                                                    SWException sw = (SWException) t;
-                                                    if (sw.getSw() == SW.ERROR_RECEIPT_NOT_FOUND) {
-                                                        // probably it was acked before
-                                                        states.put(file.getRecordID(), Storage.State.Ack);
-                                                        appendDebugLogAsText(String.format("ZREPORT ACK SW ERROR %s: %s => %04x - RECEIPT_NOT_FOUND", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
-                                                    } else {
-                                                        states.put(file.getRecordID(), Storage.State.AckError);
-                                                        appendDebugLogAsText(String.format("ZREPORT ACK SW ERROR %s: %s => %04x", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
-                                                    }
-                                                } else {
-                                                    appendDebugLogAsText(String.format("ZREPORT ACK FAIL %s: %s => %s", terminalID, HexBin.encode(file.getHeader(), 8, 8), t.getMessage()));
-                                                }
-                                            }
-                                            break;
-                                        case ReceiptAck:
-                                            try {
-                                                new AckReceiptCommand(file.getBody()).run(apduio, VoidDecoder.class);
-                                                appendDebugLogAsText(String.format("RECEIPT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
-                                                states.put(file.getRecordID(), Storage.State.Ack);
-                                            } catch (Throwable t) {
-                                                if (t instanceof SWException) {
-                                                    SWException sw = (SWException) t;
-                                                    if (sw.getSw() == SW.ERROR_RECEIPT_NOT_FOUND) {
-                                                        // probably it was acked before
-                                                        states.put(file.getRecordID(), Storage.State.Ack);
-                                                        appendDebugLogAsText(String.format("RECEIPT ACK SW ERROR %s: %s => %04x - RECEIPT_NOT_FOUND", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
-                                                    } else {
-                                                        states.put(file.getRecordID(), Storage.State.AckError);
-                                                        appendDebugLogAsText(String.format("RECEIPT ACK SW ERROR %s: %s => %04x", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
-                                                    }
-                                                } else {
-                                                    appendDebugLogAsText(String.format("RECEIPT ACK FAIL %s: %s => %s", terminalID, HexBin.encode(file.getHeader(), 8, 8), t.getMessage()));
-                                                }
-                                            }
-                                            break;
-                                        case AdvanceReceiptAck:
-                                            appendDebugLogAsText(String.format("ADVANCE RECEIPT ACK %s: %s", terminalID, "OK"));
+
+                    storage.listFileByState(Storage.Table.Recv, Storage.State.New, file -> {
+
+                        try {
+                            if (terminalID.equals(file.getTerminalID())) {
+                                switch (file.getType()) {
+                                    case SaleRefundReceiptAck:
+                                        try {
+                                            new AckReceiptCommand(file.getBody()).run(apduio, VoidDecoder.class);
+                                            appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
                                             states.put(file.getRecordID(), Storage.State.Ack);
-                                            break;
-                                        case CreditReceiptAck:
-                                            appendDebugLogAsText(String.format("CREDIT RECEIPT ACK %s: %s", terminalID, "OK"));
+                                        } catch (Throwable t) {
+                                            if (t instanceof SWException) {
+                                                SWException sw = (SWException) t;
+                                                if (sw.getSw() == SW.ERROR_RECEIPT_NOT_FOUND) {
+                                                    // probably it was acked before
+                                                    states.put(file.getRecordID(), Storage.State.Ack);
+                                                    appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK SW ERROR %s: %s => %04x - RECEIPT_NOT_FOUND", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
+                                                } else {
+                                                    states.put(file.getRecordID(), Storage.State.AckError);
+                                                    appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK SW ERROR %s: %s => %04x", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
+                                                }
+                                            } else {
+                                                appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK FAIL %s: %s => %s", terminalID, HexBin.encode(file.getHeader(), 8, 8), t.getMessage()));
+                                            }
+                                        }
+                                        break;
+                                    case ZReportAck:
+                                        try {
+                                            new AckZReportCommand(file.getBody()).run(apduio, VoidDecoder.class);
+                                            appendDebugLogAsText(String.format("ZREPORT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
                                             states.put(file.getRecordID(), Storage.State.Ack);
-                                            break;
-                                        default:
-                                    }
-                                    appendDebugLogAsText("");
+                                        } catch (Throwable t) {
+                                            if (t instanceof SWException) {
+                                                SWException sw = (SWException) t;
+                                                if (sw.getSw() == SW.ERROR_RECEIPT_NOT_FOUND) {
+                                                    // probably it was acked before
+                                                    states.put(file.getRecordID(), Storage.State.Ack);
+                                                    appendDebugLogAsText(String.format("ZREPORT ACK SW ERROR %s: %s => %04x - RECEIPT_NOT_FOUND", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
+                                                } else {
+                                                    states.put(file.getRecordID(), Storage.State.AckError);
+                                                    appendDebugLogAsText(String.format("ZREPORT ACK SW ERROR %s: %s => %04x", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
+                                                }
+                                            } else {
+                                                appendDebugLogAsText(String.format("ZREPORT ACK FAIL %s: %s => %s", terminalID, HexBin.encode(file.getHeader(), 8, 8), t.getMessage()));
+                                            }
+                                        }
+                                        break;
+                                    case ReceiptAck:
+                                        try {
+                                            new AckReceiptCommand(file.getBody()).run(apduio, VoidDecoder.class);
+                                            appendDebugLogAsText(String.format("RECEIPT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
+                                            states.put(file.getRecordID(), Storage.State.Ack);
+                                        } catch (Throwable t) {
+                                            if (t instanceof SWException) {
+                                                SWException sw = (SWException) t;
+                                                if (sw.getSw() == SW.ERROR_RECEIPT_NOT_FOUND) {
+                                                    // probably it was acked before
+                                                    states.put(file.getRecordID(), Storage.State.Ack);
+                                                    appendDebugLogAsText(String.format("RECEIPT ACK SW ERROR %s: %s => %04x - RECEIPT_NOT_FOUND", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
+                                                } else {
+                                                    states.put(file.getRecordID(), Storage.State.AckError);
+                                                    appendDebugLogAsText(String.format("RECEIPT ACK SW ERROR %s: %s => %04x", terminalID, HexBin.encode(file.getHeader(), 8, 8), sw.getSw()));
+                                                }
+                                            } else {
+                                                appendDebugLogAsText(String.format("RECEIPT ACK FAIL %s: %s => %s", terminalID, HexBin.encode(file.getHeader(), 8, 8), t.getMessage()));
+                                            }
+                                        }
+                                        break;
+                                    case AdvanceReceiptAck:
+                                        appendDebugLogAsText(String.format("ADVANCE RECEIPT ACK %s: %s", terminalID, "OK"));
+                                        states.put(file.getRecordID(), Storage.State.Ack);
+                                        break;
+                                    case CreditReceiptAck:
+                                        appendDebugLogAsText(String.format("CREDIT RECEIPT ACK %s: %s", terminalID, "OK"));
+                                        states.put(file.getRecordID(), Storage.State.Ack);
+                                        break;
+                                    default:
                                 }
-                            } catch (Throwable t) {
-                                appendDebugLogKeyValue("ERROR", t.getMessage(), 10);
+                                appendDebugLogAsText("");
                             }
-                            return true;
+                        } catch (Throwable t) {
+                            appendDebugLogKeyValue("ERROR", t.getMessage(), 10);
                         }
+                        return true;
                     });
                     storage.setFilesStates(states);
                 });

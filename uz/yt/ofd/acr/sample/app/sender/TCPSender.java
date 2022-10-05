@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
 import uz.yt.ofd.acr.sample.app.config.SenderConfig;
 import uz.yt.ofd.acr.sample.app.logger.TLVLogger;
 import uz.yt.ofd.acr.sample.app.storage.SQLiteStorage;
@@ -33,7 +34,6 @@ import uz.yt.ofd.codec.tlv.TLV;
 import uz.yt.ofd.codec.tlv.TVS;
 
 /**
- *
  * @author administrator
  */
 public class TCPSender implements Sender {
@@ -60,18 +60,15 @@ public class TCPSender implements Sender {
         try {
 
             int[] count = new int[]{0};
-            storage.listNewFile(Storage.Table.Send, new Storage.Callback() {
-                @Override
-                public boolean next(Storage.FileInfo file) {
-                    count[0]++;
+            storage.listNewFile(Storage.Table.Send, file -> {
+                count[0]++;
 
-                    if (!filesByTerminalID.containsKey(file.getTerminalID())) {
-                        filesByTerminalID.put(file.getTerminalID(), new LinkedList());
-                    }
-                    filesByTerminalID.get(file.getTerminalID()).add(file);
-
-                    return count[0] < senderConfig.getNumberOfFilesToSend();
+                if (!filesByTerminalID.containsKey(file.getTerminalID())) {
+                    filesByTerminalID.put(file.getTerminalID(), new LinkedList());
                 }
+                filesByTerminalID.get(file.getTerminalID()).add(file);
+
+                return count[0] < senderConfig.getNumberOfFilesToSend();
             });
             if (filesByTerminalID.isEmpty()) {
                 if (tlvLogger != null) {
@@ -218,16 +215,20 @@ public class TCPSender implements Sender {
                     continue;
                 }
                 for (int i = 0; i < req.getFiles().length; i++) {
-                    File rf = req.getFiles()[i];
-                    AckFile af = res.getAckFiles()[i];
-                    if (!Arrays.equals(af.getTag(), rf.getTag())) {
+                    File requestFile = req.getFiles()[i];
+                    AckFile ackFile = res.getAckFiles()[i];
+
+                    System.out.println("Request file tag : " + Arrays.toString(requestFile.getTag()));
+                    System.out.println("Ack file tag : " + Arrays.toString(ackFile.getTag()));
+
+                    if (!Arrays.equals(ackFile.getTag(), requestFile.getTag())) {
                         if (tlvLogger != null) {
-                            tlvLogger.appendDebugLogKeyValue("WARNING", String.format("request file %d tag %s != response file tag %s", i, HexBin.encode(rf.getTag()), HexBin.encode(af.getTag())), 10);
+                            tlvLogger.appendDebugLogKeyValue("WARNING", String.format("request file %d tag %s != response file tag %s", i, HexBin.encode(requestFile.getTag()), HexBin.encode(ackFile.getTag())), 10);
                         }
                         continue MAIN;
                     }
-                    FileType ackType = SQLiteStorage.Rec2AckFileMap.get(FileType.find(rf.getType()));
-                    storage.saveFile(ackType, rf.getVersion(), teminalID, null, null, af.getHeader(), af.getBody(), new Date(), new String(rf.getTag()), af.getStatus());
+                    FileType ackType = SQLiteStorage.Rec2AckFileMap.get(FileType.find(requestFile.getType()));
+                    storage.saveFile(ackType, requestFile.getVersion(), teminalID, null, null, ackFile.getHeader(), ackFile.getBody(), new Date(), new String(requestFile.getTag()), ackFile.getStatus());
                 }
             }
         } catch (Throwable t) {
