@@ -80,8 +80,8 @@ public class TCPSender implements Sender {
                 List<File> sendFiles = new LinkedList();
                 for (Storage.FileInfo file : filesByTerminalID.get(teminalID)) {
                     byte[] recordId = file.getRecordID().getBytes();
-                    sendFiles.add(new File(file.getType().value, file.getVersion(), file.getHeader(), file.getBody(), (byte) 0,recordId ));
-                    System.out.println("recordId -> "+Arrays.toString(recordId));
+                    sendFiles.add(new File(file.getType().value, file.getVersion(), file.getHeader(), file.getBody(), (byte) 0, recordId));
+                    System.out.println("recordId -> " + Arrays.toString(recordId));
                 }
                 File[] sentFiles = sendFiles.toArray(new File[0]);
                 System.out.println("terminalId -> " + teminalID);
@@ -149,6 +149,7 @@ public class TCPSender implements Sender {
                         case OK:
                             if (tlvLogger != null) {
                                 tlvLogger.appendDebugLogKeyValue("SUCCESS", "Received " + res.getAckFiles().length + " ack files", 10);
+                                System.out.println("ack file body -> " + Arrays.toString(res.getAckFiles()[0].getBody()));
                             }
                             break;
                         case OKNotice:

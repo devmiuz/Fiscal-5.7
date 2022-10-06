@@ -970,10 +970,7 @@ public class TestFrameController implements TLVLogger, SenderConfig {
                                     case SaleRefundReceiptAck:
                                         try {
                                             System.out.println("ack body -> " + Arrays.toString(file.getBody()));
-                                            byte[] ackd = {102, 127, -50, -52, 100, 23, 40, 98, -14, -2, 110, 13, -104, 64, 120, 24, 120, -89, -37, 125, 22, -107, -94, 86, 64, 37, -99, -19, 23, -48, -66, -86, 76, -100, -128, -67, -40, 77, -73, 109, -85, -58, 109, 121, 121, -103, -97, -35};
-                                            System.out.println("ackd size " + ackd.length);
-                                            System.out.println("ack body size " + file.getBody().length);
-                                            new AckReceiptCommand(ackd).run(apduio, VoidDecoder.class);
+                                            new AckReceiptCommand(file.getBody()).run(apduio, VoidDecoder.class);
                                             appendDebugLogAsText(String.format("SALE/REFUND RECEIPT ACK %s: %s", terminalID, HexBin.encode(file.getHeader(), 8, 8)));
                                             states.put(file.getRecordID(), Storage.State.Ack);
                                         } catch (Throwable t) {
